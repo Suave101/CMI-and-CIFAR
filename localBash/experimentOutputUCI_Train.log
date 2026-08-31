@@ -1,0 +1,12 @@
+====================================================
+Slurm Job ID:      72675
+Running on host:   gpu05
+Assigned Node(s):  gpu05
+Start Time:        Mon Aug 31 09:31:32 AM EDT 2026
+====================================================
+Activating Conda Environment: ml_project
+Starting Experiment...
+=== BASELINE MODEL TRAINED & SAVED ===
+Training Accuracy: 100.00%
+Test Accuracy:     96.94%
+Saved artifacts: 'mlp_model.pth' and 'dataset.pt'

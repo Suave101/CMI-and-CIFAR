@@ -1,0 +1,26 @@
+====================================================
+Slurm Job ID:      72678
+Running on host:   gpu05
+Assigned Node(s):  gpu05
+Start Time:        Mon Aug 31 09:44:36 AM EDT 2026
+====================================================
+Activating Conda Environment: ml_project
+Starting Experiment...
+=== GRID SEARCH STUDY: RETENTION % vs ACCURACY, AGREEMENT & FLOPs ===
+Retention %  | Kept Neurons | Test Acc %   | Agreement %  | Batch MFLOPs
+------------------------------------------------------------------------
+5           % | 19           | 18.33       % | 17.78       % | 0.336        MFLOPs
+10          % | 38           | 37.50       % | 37.50       % | 1.013        MFLOPs
+15          % | 58           | 33.33       % | 33.89       % | 1.891        MFLOPs
+20          % | 77           | 46.11       % | 46.67       % | 3.246        MFLOPs
+25          % | 96           | 53.06       % | 54.17       % | 4.600        MFLOPs
+30          % | 115          | 51.67       % | 53.61       % | 5.748        MFLOPs
+40          % | 154          | 51.94       % | 53.89       % | 8.204        MFLOPs
+50          % | 192          | 65.83       % | 67.50       % | 12.172       MFLOPs
+60          % | 230          | 76.67       % | 78.33       % | 16.139       MFLOPs
+70          % | 269          | 92.50       % | 93.89       % | 20.585       MFLOPs
+80          % | 307          | 95.83       % | 97.22       % | 25.603       MFLOPs
+90          % | 346          | 96.39       % | 98.61       % | 31.031       MFLOPs
+100         % | 384          | 96.94       % | 100.00      % | 36.311       MFLOPs
+
+Plot saved: 'retention_grid_search.png'

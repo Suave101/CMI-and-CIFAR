@@ -1,0 +1,19 @@
+====================================================
+Slurm Job ID:      72674
+Running on host:   gpu05
+Assigned Node(s):  gpu05
+Start Time:        Mon Aug 31 09:22:38 AM EDT 2026
+====================================================
+Activating Conda Environment: ml_project
+Starting Experiment...
+=== 1. BASELINE MODEL PERFORMANCE ===
+Training Accuracy: 100.00%
+Test Accuracy:     96.94%
+
+Saved plot: neuron_causal_scores.png
+Saved plot: retained_neurons_mask.png
+
+=== 2. POST-PRUNING PERFORMANCE (Top 15% Retained) ===
+Total Retained Neurons: 153 / 384
+Pruned Model Accuracy:  52.50%
+Prediction Agreement:   54.44%

@@ -1,0 +1,11 @@
+====================================================
+Slurm Job ID:      72448
+Running on host:   gpu05
+Assigned Node(s):  gpu05
+Start Time:        Fri Aug 28 03:45:57 PM EDT 2026
+====================================================
+Activating Conda Environment: ml_project
+Traceback (most recent call last):
+  File "/home1/adoyle2025/suave101/CMI-and-CIFAR/experiment.py", line 56, in <module>
+    model = get_cifar_resnet18().to(device)
+NameError: name 'get_cifar_resnet18' is not defined
