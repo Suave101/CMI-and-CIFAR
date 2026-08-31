@@ -3,7 +3,7 @@
 #SBATCH --job-name=CMI_UCI
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --output=experimentOutputUCI_Grid.log
+#SBATCH --output=experimentOutputUCI_Importance.log
 #SBATCH --partition=gpu2
 #SBATCH --cpus-per-task=12
 #SBATCH --gres=gpu:2
@@ -31,5 +31,5 @@ cd /home1/adoyle2025/suave101/CMI-and-CIFAR
 
 echo "Starting Experiment..."
 
-python3 gridSearch.py
+python3 importanceExperiment.py
 
