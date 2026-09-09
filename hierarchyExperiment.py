@@ -4,11 +4,11 @@ import numpy as np
 from sklearn.cluster import AgglomerativeClustering
 
 import matplotlib
-matplotlib.use('Agg')  # Headless HPC backend
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 # =====================================================================
-# 1. Load Data and Pre-Trained Baseline Model
+# 1. Load Data and Baseline Model
 # =====================================================================
 data = torch.load('dataset.pt')
 X_test_t, y_test_t = data['X_test'], data['y_test']
@@ -35,20 +35,27 @@ model.eval()
 with torch.no_grad():
     orig_test_preds = model(X_test_t).argmax(dim=1)
 
+TOTAL_HIDDEN_NEURONS = 256 + 128  # 384 total hidden neurons
+
 # =====================================================================
-# 2. Extract Behavioral Fingerprints & Compute Global Causal Scores
+# 2. Extract Fingerprints & Causal Scores
 # =====================================================================
-# Extract activation fingerprints (360-dim vector per neuron across reference set)
 with torch.no_grad():
-    h1_act = model.relu1(model.fc1(X_test_t)).cpu().numpy()  # (360, 256)
-    h2_act = model.relu2(model.fc2(torch.tensor(h1_act))).cpu().numpy()  # (360, 128)
+    h1_act = model.relu1(model.fc1(X_test_t)).cpu().numpy()
+    h2_act = model.relu2(model.fc2(torch.tensor(h1_act))).cpu().numpy()
 
-# Transpose so each row corresponds to a neuron's behavioral fingerprint
-fingerprints_l1 = h1_act.T  # (256, 360)
-fingerprints_l2 = h2_act.T  # (128, 360)
-all_fingerprints = np.vstack([fingerprints_l1, fingerprints_l2])  # (384, 360)
+fp_l1 = h1_act.T  # (256, 360)
+fp_l2 = h2_act.T  # (128, 360)
 
-# Pool exact causal ablation scores globally across all layers
+mean_act_l1 = fp_l1.mean(axis=1)
+mean_act_l2 = fp_l2.mean(axis=1)
+
+fp_l1_safe = fp_l1.copy()
+fp_l1_safe[np.all(fp_l1 == 0, axis=1)] = 1e-8
+
+fp_l2_safe = fp_l2.copy()
+fp_l2_safe[np.all(fp_l2 == 0, axis=1)] = 1e-8
+
 scores_l1 = np.zeros(256)
 scores_l2 = np.zeros(128)
 
@@ -65,131 +72,190 @@ with torch.no_grad():
         h2[:, j] = 0.0
         scores_l2[j] = (orig_test_preds != model.fc3(h2).argmax(dim=1)).float().mean().item()
 
-all_scores = np.concatenate([scores_l1, scores_l2])  # Pooled across all layers
+def get_cosine_distance(u, v):
+    norm_u, norm_v = np.linalg.norm(u), np.linalg.norm(v)
+    if norm_u == 0.0 or norm_v == 0.0:
+        return 1.0
+    return 1.0 - (np.dot(u, v) / (norm_u * norm_v))
+
+def find_cluster_medoid(fingerprints, members):
+    if len(members) == 1:
+        return members[0]
+    sub_fps = fingerprints[members]
+    centroid = sub_fps.mean(axis=0)
+    dists = [get_cosine_distance(fp, centroid) for fp in sub_fps]
+    return members[np.argmin(dists)]
 
 # =====================================================================
-# 3. Causal Restructuring Methodology
+# 3. Method 1: Causal Restructuring Pipeline
 # =====================================================================
-def build_and_evaluate_abstract_network(k_clusters):
-    """
-    Builds abstract model by isolating Top 15% causal core, clustering the remaining
-    85% into k groups with Agglomerative Clustering, selecting closest representatives,
-    and merging weights.
-    """
-    total_neurons = len(all_scores)
-    n_top = int(np.round(0.15 * total_neurons))  # Top 15% causal core (~58 neurons)
-    
-    ranked_indices = np.argsort(all_scores)
-    top_causal_indices = set(ranked_indices[-n_top:])
-    remaining_indices = np.array([idx for idx in range(total_neurons) if idx not in top_causal_indices])
-    
-    # Target reference fingerprint from Top 15% causal core
-    core_fingerprint_mean = all_fingerprints[list(top_causal_indices)].mean(axis=0)
+def build_causal_abstract_network(k_clusters_per_layer):
+    n_top_l1 = int(np.round(0.15 * 256))
+    n_top_l2 = int(np.round(0.15 * 128))
 
-    # Agglomerative clustering on the remaining 85% neurons
-    clustering = AgglomerativeClustering(n_clusters=k_clusters)
-    cluster_labels = clustering.fit_predict(all_fingerprints[remaining_indices])
+    top_l1 = set(np.argsort(scores_l1)[-n_top_l1:])
+    top_l2 = set(np.argsort(scores_l2)[-n_top_l2:])
 
-    # Copy baseline weights for merging
-    W1 = model.fc1.weight.clone()
-    b1 = model.fc1.bias.clone()
-    W2 = model.fc2.weight.clone()
-    b2 = model.fc2.bias.clone()
-    W3 = model.fc3.weight.clone()
-    b3 = model.fc3.bias.clone()
+    rem_l1 = np.array([i for i in range(256) if i not in top_l1])
+    rem_l2 = np.array([j for j in range(128) if j not in top_l2])
 
-    kept_l1 = set(idx for idx in top_causal_indices if idx < 256)
-    kept_l2 = set(idx - 256 for idx in top_causal_indices if idx >= 256)
+    c_l1 = AgglomerativeClustering(n_clusters=k_clusters_per_layer, metric='cosine', linkage='average')
+    labels_l1 = c_l1.fit_predict(fp_l1_safe[rem_l1])
 
-    # Process each cluster: find representative and merge outgoing weights
-    for c_id in range(k_clusters):
-        cluster_neuron_indices = remaining_indices[cluster_labels == c_id]
-        
-        # Split cluster neurons by original layer
-        l1_cluster = [idx for idx in cluster_neuron_indices if idx < 256]
-        l2_cluster = [idx - 256 for idx in cluster_neuron_indices if idx >= 256]
+    c_l2 = AgglomerativeClustering(n_clusters=k_clusters_per_layer, metric='cosine', linkage='average')
+    labels_l2 = c_l2.fit_predict(fp_l2_safe[rem_l2])
 
-        # Process Layer 1 cluster members
-        if l1_cluster:
-            dists = [np.linalg.norm(all_fingerprints[idx] - core_fingerprint_mean) for idx in l1_cluster]
-            rep_l1 = l1_cluster[np.argmin(dists)]
-            kept_l1.add(rep_l1)
-            # Merge outgoing weights of discarded neurons in cluster onto representative
-            for idx in l1_cluster:
-                if idx != rep_l1:
-                    W2[:, rep_l1] += W2[:, idx]
+    W1 = model.fc1.weight.detach().clone()
+    b1 = model.fc1.bias.detach().clone()
+    W2 = model.fc2.weight.detach().clone()
+    b2 = model.fc2.bias.detach().clone()
+    W3 = model.fc3.weight.detach().clone()
+    b3 = model.fc3.bias.detach().clone()
 
-        # Process Layer 2 cluster members
-        if l2_cluster:
-            dists = [np.linalg.norm(all_fingerprints[idx + 256] - core_fingerprint_mean) for idx in l2_cluster]
-            rep_l2 = l2_cluster[np.argmin(dists)]
-            kept_l2.add(rep_l2)
-            # Merge outgoing weights of discarded neurons in cluster onto representative
-            for idx in l2_cluster:
-                if idx != rep_l2:
-                    W3[:, rep_l2] += W3[:, idx]
+    kept_l1, kept_l2 = set(top_l1), set(top_l2)
 
-    # Mask and extract active sub-matrices
-    mask_l1 = np.array([i in kept_l1 for i in range(256)])
-    mask_l2 = np.array([j in kept_l2 for j in range(128)])
+    # Restructure Layer 1
+    for cid in range(k_clusters_per_layer):
+        members = rem_l1[labels_l1 == cid]
+        rep = find_cluster_medoid(fp_l1_safe, members)
+        kept_l1.add(rep)
+
+        aligned = [m for m in members if (1.0 - get_cosine_distance(fp_l1_safe[m], fp_l1_safe[rep])) > 0.0] or [rep]
+        total_act_aligned = sum(mean_act_l1[m] for m in aligned) + 1e-8
+
+        W1_combo = sum(((mean_act_l1[m] + 1e-8) / total_act_aligned) * W1[m] for m in aligned)
+        b1_combo = sum(((mean_act_l1[m] + 1e-8) / total_act_aligned) * b1[m] for m in aligned)
+        W1[rep], b1[rep] = W1_combo, b1_combo
+
+        rep_act = mean_act_l1[rep] + 1e-8
+        for m in members:
+            if m != rep:
+                W2[:, rep] += (mean_act_l1[m] / rep_act) * W2[:, m]
+
+    # Restructure Layer 2
+    for cid in range(k_clusters_per_layer):
+        members = rem_l2[labels_l2 == cid]
+        rep = find_cluster_medoid(fp_l2_safe, members)
+        kept_l2.add(rep)
+
+        aligned = [m for m in members if (1.0 - get_cosine_distance(fp_l2_safe[m], fp_l2_safe[rep])) > 0.0] or [rep]
+        total_act_aligned = sum(mean_act_l2[m] for m in aligned) + 1e-8
+
+        W2_combo = sum(((mean_act_l2[m] + 1e-8) / total_act_aligned) * W2[m] for m in aligned)
+        b2_combo = sum(((mean_act_l2[m] + 1e-8) / total_act_aligned) * b2[m] for m in aligned)
+        W2[rep], b2[rep] = W2_combo, b2_combo
+
+        rep_act = mean_act_l2[rep] + 1e-8
+        for m in members:
+            if m != rep:
+                W3[:, rep] += (mean_act_l2[m] / rep_act) * W3[:, m]
+
+    mask_l1, mask_l2 = np.array([i in kept_l1 for i in range(256)]), np.array([j in kept_l2 for j in range(128)])
 
     with torch.no_grad():
-        W1_sub = W1[mask_l1, :]
-        b1_sub = b1[mask_l1]
-        W2_sub = W2[mask_l2, :][:, mask_l1]
-        b2_sub = b2[mask_l2]
-        W3_sub = W3[:, mask_l2]
-        b3_sub = b3
-
-        h1_p = torch.relu(torch.matmul(X_test_t, W1_sub.T) + b1_sub)
-        h2_p = torch.relu(torch.matmul(h1_p, W2_sub.T) + b2_sub)
-        p_logits = torch.matmul(h2_p, W3_sub.T) + b3_sub
+        h1_p = torch.relu(torch.matmul(X_test_t, W1[mask_l1, :].T) + b1[mask_l1])
+        h2_p = torch.relu(torch.matmul(h1_p, W2[mask_l2, :][:, mask_l1].T) + b2[mask_l2])
+        p_logits = torch.matmul(h2_p, W3[:, mask_l2].T) + b3
         p_preds = p_logits.argmax(dim=1)
 
         acc = (p_preds == y_test_t).float().mean().item() * 100
         agree = (p_preds == orig_test_preds).float().mean().item() * 100
 
-    total_kept = len(kept_l1) + len(kept_l2)
-    return acc, agree, total_kept
+    return acc, agree, len(kept_l1), len(kept_l2)
 
 # =====================================================================
-# 4. Run Experiment across Cluster Sizes (k)
+# 4. Method 2: Random Neuron Ablation Baseline
 # =====================================================================
-k_values = [2, 5, 10, 20, 30, 40, 50, 75, 100]
-abstract_accs, abstract_agrees, kept_counts = [], [], []
+def eval_random_ablation(n_kept_l1, n_kept_l2, n_trials=10, seed=42):
+    """
+    Randomly retains n_kept_l1 and n_kept_l2 neurons across n_trials,
+    ablating the rest without weight merging.
+    """
+    np.random.seed(seed)
+    trial_accs, trial_agrees = [], []
 
-print("=== CAUSAL RESTRUCTURING ABSTRACT MODEL EVALUATION ===")
-print(f"{'Clusters (k)':<12} | {'Depth (k+1)':<12} | {'Kept Neurons':<14} | {'Accuracy %':<12} | {'Agreement %':<12}")
-print("-" * 72)
+    W1_orig = model.fc1.weight.detach()
+    b1_orig = model.fc1.bias.detach()
+    W2_orig = model.fc2.weight.detach()
+    b2_orig = model.fc2.bias.detach()
+    W3_orig = model.fc3.weight.detach()
+    b3_orig = model.fc3.bias.detach()
+
+    for _ in range(n_trials):
+        kept_l1 = np.random.choice(256, n_kept_l1, replace=False)
+        kept_l2 = np.random.choice(128, n_kept_l2, replace=False)
+
+        W1_sub = W1_orig[kept_l1, :]
+        b1_sub = b1_orig[kept_l1]
+        W2_sub = W2_orig[kept_l2, :][:, kept_l1]
+        b2_sub = b2_orig[kept_l2]
+        W3_sub = W3_orig[:, kept_l2]
+
+        with torch.no_grad():
+            h1 = torch.relu(torch.matmul(X_test_t, W1_sub.T) + b1_sub)
+            h2 = torch.relu(torch.matmul(h1, W2_sub.T) + b2_sub)
+            p_logits = torch.matmul(h2, W3_sub.T) + b3_orig
+            p_preds = p_logits.argmax(dim=1)
+
+            acc = (p_preds == y_test_t).float().mean().item() * 100
+            agree = (p_preds == orig_test_preds).float().mean().item() * 100
+
+            trial_accs.append(acc)
+            trial_agrees.append(agree)
+
+    return np.mean(trial_accs), np.mean(trial_agrees)
+
+# =====================================================================
+# 5. Comparative Evaluation Across % Neurons Kept
+# =====================================================================
+k_values = [2, 5, 10, 20, 30, 40, 50, 75]
+
+pct_kept_list = []
+causal_accs, causal_agrees = [], []
+rand_abl_accs, rand_abl_agrees = [], []
+
+print("=== % NEURONS KEPT: OUR METHOD VS. RANDOM ABLATION ===")
+print(f"{'% Kept':<10} | {'Kept Neurons':<12} | {'Causal Acc %':<13} | {'Rand Abl Acc %':<15} | {'Causal Agr %':<13} | {'Rand Abl Agr %':<15}")
+print("-" * 86)
 
 for k in k_values:
-    acc, agree, total_kept = build_and_evaluate_abstract_network(k_clusters=k)
-    abstract_accs.append(acc)
-    abstract_agrees.append(agree)
-    kept_counts.append(total_kept)
-    print(f"{k:<12} | {k+1:<12} | {total_kept:<14} | {acc:<12.2f}% | {agree:<12.2f}%")
+    c_acc, c_agr, kept_l1, kept_l2 = build_causal_abstract_network(k_clusters_per_layer=k)
+    total_kept = kept_l1 + kept_l2
+    pct_kept = (total_kept / TOTAL_HIDDEN_NEURONS) * 100.0
+
+    r_acc, r_agr = eval_random_ablation(n_kept_l1=kept_l1, n_kept_l2=kept_l2, n_trials=10)
+
+    pct_kept_list.append(pct_kept)
+    causal_accs.append(c_acc)
+    causal_agrees.append(c_agr)
+    rand_abl_accs.append(r_acc)
+    rand_abl_agrees.append(r_agr)
+
+    print(f"{pct_kept:<10.2f}% | {total_kept:<12} | {c_acc:<13.2f} | {r_acc:<15.2f} | {c_agr:<13.2f} | {r_agr:<15.2f}")
 
 # =====================================================================
-# 5. Plot Agreement & Accuracy Results
+# 6. Plotting Results (% Neurons Kept on X-Axis)
 # =====================================================================
-fig, ax1 = plt.subplots(figsize=(10, 6))
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
-color = 'tab:blue'
-ax1.set_xlabel('Number of Clusters (k) [Abstract Depth = k + 1]', fontsize=12)
-ax1.set_ylabel('Agreement with Original Model (%)', color=color, fontsize=12)
-ax1.plot(k_values, abstract_agrees, 'o-', color=color, linewidth=2.5, label='Agreement (%)')
-ax1.tick_params(axis='y', labelcolor=color)
+# Plot 1: Agreement vs % Neurons Kept
+ax1.plot(pct_kept_list, causal_agrees, 'o-', color='tab:blue', linewidth=2.5, label='Our Causal Method')
+ax1.plot(pct_kept_list, rand_abl_agrees, 'o--', color='tab:red', linewidth=2.0, label='Random Neuron Ablation')
+ax1.set_xlabel('Percentage of Neurons Kept (%)', fontsize=12)
+ax1.set_ylabel('Agreement with Original Model (%)', fontsize=12)
+ax1.set_title('Agreement vs. % Neurons Kept', fontsize=14)
 ax1.grid(True, linestyle='--', alpha=0.5)
+ax1.legend(fontsize=11)
 
-ax2 = ax1.twinx()
-color = 'tab:green'
-ax2.set_ylabel('Test Accuracy (%)', color=color, fontsize=12)
-ax2.plot(k_values, abstract_accs, 's--', color=color, linewidth=2, label='Accuracy (%)')
-ax2.tick_params(axis='y', labelcolor=color)
+# Plot 2: Accuracy vs % Neurons Kept
+ax2.plot(pct_kept_list, causal_accs, 's-', color='tab:green', linewidth=2.5, label='Our Causal Method')
+ax2.plot(pct_kept_list, rand_abl_accs, 's--', color='tab:orange', linewidth=2.0, label='Random Neuron Ablation')
+ax2.set_xlabel('Percentage of Neurons Kept (%)', fontsize=12)
+ax2.set_ylabel('Test Accuracy (%)', fontsize=12)
+ax2.set_title('Test Accuracy vs. % Neurons Kept', fontsize=14)
+ax2.grid(True, linestyle='--', alpha=0.5)
+ax2.legend(fontsize=11)
 
-plt.title('Causal Restructuring: Model Agreement & Accuracy vs Cluster Count (k)', fontsize=14)
-fig.tight_layout()
-
-plt.savefig('causal_restructuring_results.png', dpi=300)
+plt.tight_layout()
+plt.savefig('pct_kept_causal_vs_random_ablation.png', dpi=300)
 plt.close()
-print("\nPlot saved: 'causal_restructuring_results.png'")
