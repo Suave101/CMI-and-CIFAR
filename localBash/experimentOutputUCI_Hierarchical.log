@@ -1,0 +1,22 @@
+====================================================
+Slurm Job ID:      75429
+Running on host:   gpu05
+Assigned Node(s):  gpu05
+Start Time:        Wed Sep  9 09:14:36 AM EDT 2026
+====================================================
+Activating Conda Environment: ml_project
+Starting Experiment...
+=== CAUSAL RESTRUCTURING ABSTRACT MODEL EVALUATION ===
+Clusters (k) | Depth (k+1)  | Kept Neurons   | Accuracy %   | Agreement % 
+------------------------------------------------------------------------
+2            | 3            | 61             | 12.22       % | 12.22       %
+5            | 6            | 64             | 23.61       % | 23.61       %
+10           | 11           | 70             | 34.44       % | 34.17       %
+20           | 21           | 80             | 43.06       % | 43.06       %
+30           | 31           | 91             | 49.17       % | 48.89       %
+40           | 41           | 101            | 53.89       % | 53.89       %
+50           | 51           | 111            | 51.39       % | 50.56       %
+75           | 76           | 135            | 60.00       % | 59.72       %
+100          | 101          | 160            | 77.22       % | 77.22       %
+
+Plot saved: 'causal_restructuring_results.png'

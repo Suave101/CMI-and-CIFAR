@@ -1,9 +1,9 @@
 #!/bin/bash
 # --- Slurm Job Configuration ---
-#SBATCH --job-name=CMI_UCI
+#SBATCH --job-name=CMI_UCI_hierarchyExperiment
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --output=experimentOutputUCI_Orig.log
+#SBATCH --output=experimentOutputUCI_Hierarchical.log
 #SBATCH --partition=gpu2
 #SBATCH --cpus-per-task=12
 #SBATCH --gres=gpu:2
@@ -31,5 +31,5 @@ cd /home1/adoyle2025/suave101/CMI-and-CIFAR
 
 echo "Starting Experiment..."
 
-python3 origSlideExp.py
+python3 hierarchyExperiment.py
 
