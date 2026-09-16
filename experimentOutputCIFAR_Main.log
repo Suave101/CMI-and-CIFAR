@@ -1,0 +1,97 @@
+====================================================
+Slurm Job ID:      76861
+Running on host:   gpu05
+Assigned Node(s):  gpu05
+Start Time:        Tue Sep 15 04:56:04 PM EDT 2026
+====================================================
+Activating Conda Environment: ml_project
+Starting Experiment...
+=== STARTING CIFAR-10 BENCHMARK (5 SEEDS) ===
+
+[00:00] === Starting Seed [1/5] (Seed: 42) ===
+[00:03]   [Step 1/3] Training Teacher Baseline (15 Epochs)...
+[01:03]     -> Teacher Epoch 05/15 | Loss: 1.1199
+[01:59]     -> Teacher Epoch 10/15 | Loss: 0.9095
+[02:55]     -> Teacher Epoch 15/15 | Loss: 0.7715
+[02:57]   [Teacher Accuracy]: 72.12%
+[02:57]   [Step 2/3] Profiling Causal Channels & Computing Fingerprints...
+[03:03]   [Step 3/3] Running Abstraction Budgets...
+[04:58]     -> Budget 10.0% ( 45 ch) | Our FT: 41.80% | DA FT: 41.87% (115.3s)
+[06:51]     -> Budget 20.1% ( 90 ch) | Our FT: 57.16% | DA FT: 53.72% (112.7s)
+[08:43]     -> Budget 30.1% (135 ch) | Our FT: 64.33% | DA FT: 62.68% (112.7s)
+[10:36]     -> Budget 40.2% (180 ch) | Our FT: 69.36% | DA FT: 68.23% (112.9s)
+[12:29]     -> Budget 50.2% (225 ch) | Our FT: 71.00% | DA FT: 70.61% (112.6s)
+[14:21]     -> Budget 60.3% (270 ch) | Our FT: 72.08% | DA FT: 71.78% (111.9s)
+[16:13]     -> Budget 70.3% (315 ch) | Our FT: 72.54% | DA FT: 72.78% (112.5s)
+[18:06]     -> Budget 80.4% (360 ch) | Our FT: 72.88% | DA FT: 72.95% (112.6s)
+
+[18:06] === Starting Seed [2/5] (Seed: 101) ===
+[18:07]   [Step 1/3] Training Teacher Baseline (15 Epochs)...
+[19:03]     -> Teacher Epoch 05/15 | Loss: 1.1419
+[19:59]     -> Teacher Epoch 10/15 | Loss: 0.9286
+[20:55]     -> Teacher Epoch 15/15 | Loss: 0.8103
+[20:57]   [Teacher Accuracy]: 71.18%
+[20:57]   [Step 2/3] Profiling Causal Channels & Computing Fingerprints...
+[21:01]   [Step 3/3] Running Abstraction Budgets...
+[22:53]     -> Budget 10.0% ( 45 ch) | Our FT: 38.71% | DA FT: 37.55% (111.7s)
+[24:45]     -> Budget 20.1% ( 90 ch) | Our FT: 56.84% | DA FT: 52.82% (112.0s)
+[26:37]     -> Budget 30.1% (135 ch) | Our FT: 63.38% | DA FT: 61.39% (112.1s)
+[28:29]     -> Budget 40.2% (180 ch) | Our FT: 68.42% | DA FT: 67.10% (111.6s)
+[30:21]     -> Budget 50.2% (225 ch) | Our FT: 69.82% | DA FT: 69.71% (111.7s)
+[32:12]     -> Budget 60.3% (270 ch) | Our FT: 71.43% | DA FT: 70.90% (111.5s)
+[34:02]     -> Budget 70.3% (315 ch) | Our FT: 71.79% | DA FT: 71.82% (109.5s)
+[35:53]     -> Budget 80.4% (360 ch) | Our FT: 71.96% | DA FT: 71.77% (111.2s)
+
+[35:53] === Starting Seed [3/5] (Seed: 2024) ===
+[35:54]   [Step 1/3] Training Teacher Baseline (15 Epochs)...
+[36:50]     -> Teacher Epoch 05/15 | Loss: 1.1118
+[37:46]     -> Teacher Epoch 10/15 | Loss: 0.9012
+[38:41]     -> Teacher Epoch 15/15 | Loss: 0.7667
+[38:43]   [Teacher Accuracy]: 72.41%
+[38:43]   [Step 2/3] Profiling Causal Channels & Computing Fingerprints...
+[38:48]   [Step 3/3] Running Abstraction Budgets...
+[40:40]     -> Budget 10.0% ( 45 ch) | Our FT: 41.69% | DA FT: 40.49% (111.7s)
+[42:33]     -> Budget 20.1% ( 90 ch) | Our FT: 53.64% | DA FT: 55.48% (113.0s)
+[44:25]     -> Budget 30.1% (135 ch) | Our FT: 64.66% | DA FT: 64.47% (112.9s)
+[46:18]     -> Budget 40.2% (180 ch) | Our FT: 69.24% | DA FT: 68.39% (113.0s)
+[48:11]     -> Budget 50.2% (225 ch) | Our FT: 71.38% | DA FT: 71.14% (112.6s)
+[50:04]     -> Budget 60.3% (270 ch) | Our FT: 72.53% | DA FT: 72.33% (112.7s)
+[51:56]     -> Budget 70.3% (315 ch) | Our FT: 73.14% | DA FT: 72.94% (112.4s)
+[53:49]     -> Budget 80.4% (360 ch) | Our FT: 73.30% | DA FT: 73.32% (112.4s)
+
+[53:49] === Starting Seed [4/5] (Seed: 7) ===
+[53:50]   [Step 1/3] Training Teacher Baseline (15 Epochs)...
+[54:46]     -> Teacher Epoch 05/15 | Loss: 1.1256
+[55:41]     -> Teacher Epoch 10/15 | Loss: 0.9089
+[56:37]     -> Teacher Epoch 15/15 | Loss: 0.7767
+[56:39]   [Teacher Accuracy]: 70.66%
+[56:39]   [Step 2/3] Profiling Causal Channels & Computing Fingerprints...
+[56:44]   [Step 3/3] Running Abstraction Budgets...
+[58:35]     -> Budget 10.0% ( 45 ch) | Our FT: 41.09% | DA FT: 41.31% (111.6s)
+[60:27]     -> Budget 20.1% ( 90 ch) | Our FT: 55.09% | DA FT: 54.32% (112.0s)
+[62:19]     -> Budget 30.1% (135 ch) | Our FT: 63.60% | DA FT: 61.69% (112.1s)
+[64:12]     -> Budget 40.2% (180 ch) | Our FT: 68.36% | DA FT: 67.22% (112.3s)
+[66:04]     -> Budget 50.2% (225 ch) | Our FT: 69.92% | DA FT: 69.26% (112.1s)
+[67:56]     -> Budget 60.3% (270 ch) | Our FT: 70.75% | DA FT: 70.52% (112.3s)
+[69:48]     -> Budget 70.3% (315 ch) | Our FT: 71.42% | DA FT: 71.41% (112.2s)
+[71:40]     -> Budget 80.4% (360 ch) | Our FT: 71.66% | DA FT: 71.66% (112.3s)
+
+[71:41] === Starting Seed [5/5] (Seed: 99) ===
+[71:42]   [Step 1/3] Training Teacher Baseline (15 Epochs)...
+[72:38]     -> Teacher Epoch 05/15 | Loss: 1.1163
+[73:33]     -> Teacher Epoch 10/15 | Loss: 0.9160
+[74:29]     -> Teacher Epoch 15/15 | Loss: 0.7980
+[74:31]   [Teacher Accuracy]: 69.94%
+[74:31]   [Step 2/3] Profiling Causal Channels & Computing Fingerprints...
+[74:36]   [Step 3/3] Running Abstraction Budgets...
+[76:28]     -> Budget 10.0% ( 45 ch) | Our FT: 41.51% | DA FT: 41.47% (112.5s)
+[78:21]     -> Budget 20.1% ( 90 ch) | Our FT: 55.46% | DA FT: 53.09% (112.7s)
+[80:14]     -> Budget 30.1% (135 ch) | Our FT: 62.26% | DA FT: 61.20% (112.7s)
+[82:06]     -> Budget 40.2% (180 ch) | Our FT: 66.51% | DA FT: 66.16% (112.8s)
+[83:59]     -> Budget 50.2% (225 ch) | Our FT: 69.31% | DA FT: 68.93% (112.8s)
+[85:52]     -> Budget 60.3% (270 ch) | Our FT: 70.13% | DA FT: 70.45% (113.0s)
+[87:45]     -> Budget 70.3% (315 ch) | Our FT: 70.95% | DA FT: 71.02% (112.9s)
+[89:38]     -> Budget 80.4% (360 ch) | Our FT: 70.93% | DA FT: 71.12% (112.9s)
+
+[89:38] Generating Benchmark Figures...
+[89:39] Benchmark complete. Output plot saved to 'cifar10_benchmark_multiseed.png'

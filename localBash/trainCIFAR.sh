@@ -1,12 +1,12 @@
 #!/bin/bash
 # --- Slurm Job Configuration ---
-#SBATCH --job-name=CMI_CIFAR_Main
+#SBATCH --job-name=TrainCIFAR
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --output=experimentOutputCIFAR_Main.log
+#SBATCH --output=TrainCIFAR.log
 #SBATCH --partition=gpu2
 #SBATCH --cpus-per-task=12
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 #SBATCH --mem=16GB
 #SBATCH --mail-user=adoyle2025@my.fit.edu
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -33,4 +33,5 @@ cd /home1/adoyle2025/suave101/CMI-and-CIFAR
 
 echo "Starting Experiment..."
 
-python3 experimentCIFAR.py
+python3 trainCIFAR.py
+

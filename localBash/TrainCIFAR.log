@@ -1,0 +1,8 @@
+====================================================
+Slurm Job ID:      77129
+Running on host:   gpu05
+Assigned Node(s):  gpu05
+Start Time:        Wed Sep 16 04:40:52 PM EDT 2026
+====================================================
+Activating Conda Environment: ml_project
+Starting Experiment...

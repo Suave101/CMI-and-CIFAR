@@ -12,6 +12,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.model_selection import StratifiedShuffleSplit
 
 # =====================================================================
 # 0. Global Setup & Device Routing
@@ -129,6 +130,158 @@ def kd_loss_fn(s_logits, t_logits, labels, T=2.0, alpha=0.85):
     return alpha * kl + (1.0 - alpha) * ce
 
 # =====================================================================
+# 2b. Workflow Method: Ablation, Fingerprinting, Clustering & Restructuring
+# =====================================================================
+def run_ablation_clustering_restructure_workflow(teacher_model, val_loader, top_n_pct=15.0, n_clusters=4, prune_pct_per_layer=20.0, device=device):
+    """
+    Executes the 6-step workflow:
+    1. Single Neuron Ablation
+    2. Behavioral Fingerprinting
+    3. Keep top n% of neurons
+    4. Agglomerative Clustering of (100-n)% of neurons
+    5. Restructure network such that each cluster is a layer and layer 1 is the top n% of the neurons.
+    6. Remove the least important (by ablation) neurons from each layer
+    """
+    teacher_model.eval()
+    val_imgs = torch.cat([x.to(device) for x, _ in val_loader])
+
+    # -----------------------------------------------------------------
+    # Step 1 & Step 2: Behavioral Fingerprinting & Causal Scoring
+    # -----------------------------------------------------------------
+    with torch.no_grad():
+        val_teacher_logits = teacher_model(val_imgs)
+        c1_act = teacher_model.pool1(teacher_model.relu1(teacher_model.conv1(val_imgs)))
+        c2_act = teacher_model.pool2(teacher_model.relu2(teacher_model.conv2(c1_act)))
+        c3_act = teacher_model.pool3(teacher_model.relu3(teacher_model.conv3(c2_act)))
+
+    fp_c1 = c1_act.mean(dim=(2, 3)).T.cpu().numpy()
+    fp_c2 = c2_act.mean(dim=(2, 3)).T.cpu().numpy()
+    fp_c3 = c3_act.mean(dim=(2, 3)).T.cpu().numpy()
+
+    all_fps = np.vstack([fp_c1, fp_c2, fp_c3])
+    all_fps_safe = make_safe_fp(all_fps)
+
+    neuron_map = []
+    for i in range(64): neuron_map.append(('conv1', i))
+    for i in range(128): neuron_map.append(('conv2', i))
+    for i in range(256): neuron_map.append(('conv3', i))
+
+    ablation_scores = np.zeros(len(neuron_map))
+
+    with torch.no_grad():
+        for i in range(64):
+            temp_c1 = c1_act.clone(); temp_c1[:, i, :, :] = 0.0
+            out = teacher_model.fc(torch.flatten(teacher_model.pool3(teacher_model.relu3(teacher_model.conv3(teacher_model.pool2(teacher_model.relu2(teacher_model.conv2(temp_c1)))))), 1))
+            ablation_scores[i] = (1.0 - F.cosine_similarity(val_teacher_logits, out, dim=1)).mean().item()
+
+        for j in range(128):
+            temp_c2 = c2_act.clone(); temp_c2[:, j, :, :] = 0.0
+            out = teacher_model.fc(torch.flatten(teacher_model.pool3(teacher_model.relu3(teacher_model.conv3(temp_c2))), 1))
+            ablation_scores[64 + j] = (1.0 - F.cosine_similarity(val_teacher_logits, out, dim=1)).mean().item()
+
+        for k in range(256):
+            temp_c3 = c3_act.clone(); temp_c3[:, k, :, :] = 0.0
+            out = teacher_model.fc(torch.flatten(temp_c3, 1))
+            ablation_scores[64 + 128 + k] = (1.0 - F.cosine_similarity(val_teacher_logits, out, dim=1)).mean().item()
+
+    # -----------------------------------------------------------------
+    # Step 3: Keep top n% of neurons
+    # -----------------------------------------------------------------
+    total_neurons = len(neuron_map)
+    n_top = int(np.ceil((top_n_pct / 100.0) * total_neurons))
+    sorted_indices = np.argsort(ablation_scores)[::-1]  # Descending order by score
+    top_n_indices = sorted_indices[:n_top]
+    rem_indices = sorted_indices[n_top:]
+
+    # -----------------------------------------------------------------
+    # Step 4: Agglomerative Clustering of (100-n)% of neurons
+    # -----------------------------------------------------------------
+    rem_fps = all_fps_safe[rem_indices]
+    actual_clusters = min(n_clusters, len(rem_indices))
+    clustering = AgglomerativeClustering(n_clusters=actual_clusters, metric='cosine', linkage='average')
+    cluster_labels = clustering.fit_predict(rem_fps)
+
+    # -----------------------------------------------------------------
+    # Step 5: Restructure network such that each cluster is a layer and layer 1 is top n%
+    # -----------------------------------------------------------------
+    restructured_layers = {}
+    restructured_layers[1] = top_n_indices.tolist()
+
+    for c_id in range(actual_clusters):
+        cluster_members = rem_indices[cluster_labels == c_id].tolist()
+        restructured_layers[c_id + 2] = cluster_members
+
+    # -----------------------------------------------------------------
+    # Step 6: Remove least important (by ablation) neurons from each layer
+    # -----------------------------------------------------------------
+    pruned_layers = {}
+    for layer_idx, neurons in restructured_layers.items():
+        if len(neurons) == 0:
+            pruned_layers[layer_idx] = []
+            continue
+        layer_scores = ablation_scores[neurons]
+        sorted_in_layer = np.argsort(layer_scores)  # Ascending order (least important first)
+        n_remove = int(np.floor(len(neurons) * (prune_pct_per_layer / 100.0)))
+        kept_in_layer = [neurons[idx] for idx in sorted_in_layer[n_remove:]]
+        pruned_layers[layer_idx] = kept_in_layer
+
+    class RestructuredClusterNet(nn.Module):
+        def __init__(self, teacher_model, pruned_layers, neuron_map):
+            super().__init__()
+            self.pruned_layers = pruned_layers
+            self.neuron_map = neuron_map
+
+            all_kept = []
+            for layer_idx in sorted(pruned_layers.keys()):
+                all_kept.extend(pruned_layers[layer_idx])
+
+            kept1 = [i for i in all_kept if i < 64]
+            kept2 = [i - 64 for i in all_kept if 64 <= i < 192]
+            kept3 = [i - 192 for i in all_kept if i >= 192]
+
+            if len(kept1) == 0: kept1 = [0]
+            if len(kept2) == 0: kept2 = [0]
+            if len(kept3) == 0: kept3 = [0]
+
+            w1 = teacher_model.conv1.weight.detach()[kept1, :, :, :]
+            b1 = teacher_model.conv1.bias.detach()[kept1]
+
+            w2 = teacher_model.conv2.weight.detach()[kept2, :, :, :][:, kept1, :, :]
+            b2 = teacher_model.conv2.bias.detach()[kept2]
+
+            w3 = teacher_model.conv3.weight.detach()[kept3, :, :, :][:, kept2, :, :]
+            b3 = teacher_model.conv3.bias.detach()[kept3]
+
+            w_fc = teacher_model.fc.weight.detach()[:, kept3]
+            b_fc = teacher_model.fc.bias.detach()
+
+            self.conv1 = nn.Conv2d(3, len(kept1), kernel_size=3, padding=1)
+            self.conv2 = nn.Conv2d(len(kept1), len(kept2), kernel_size=3, padding=1)
+            self.conv3 = nn.Conv2d(len(kept2), len(kept3), kernel_size=3, padding=1)
+            self.fc = nn.Linear(len(kept3), 10)
+
+            self.conv1.weight, self.conv1.bias = nn.Parameter(w1.clone()), nn.Parameter(b1.clone())
+            self.conv2.weight, self.conv2.bias = nn.Parameter(w2.clone()), nn.Parameter(b2.clone())
+            self.conv3.weight, self.conv3.bias = nn.Parameter(w3.clone()), nn.Parameter(b3.clone())
+            self.fc.weight, self.fc.bias = nn.Parameter(w_fc.clone()), nn.Parameter(b_fc.clone())
+
+        def forward(self, x):
+            h1 = F.max_pool2d(F.relu(self.conv1(x)), 2, 2)
+            h2 = F.max_pool2d(F.relu(self.conv2(h1)), 2, 2)
+            h3 = F.adaptive_avg_pool2d(F.relu(self.conv3(h2)), (1, 1))
+            return self.fc(torch.flatten(h3, 1))
+
+    restructured_net = RestructuredClusterNet(teacher_model, pruned_layers, neuron_map).to(device)
+
+    return {
+        "ablation_scores": ablation_scores,
+        "top_n_indices": top_n_indices,
+        "restructured_layers": restructured_layers,
+        "pruned_layers": pruned_layers,
+        "restructured_model": restructured_net
+    }
+
+# =====================================================================
 # 3. Single-Seed Benchmark Execution
 # =====================================================================
 def run_cifar_seed_benchmark(seed_idx, seed):
@@ -149,10 +302,10 @@ def run_cifar_seed_benchmark(seed_idx, seed):
     full_train = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
     test_set = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
 
-    # Clean 80/20 Train/Val Split (40k Train / 10k Val)
-    indices = list(range(len(full_train)))
-    np.random.shuffle(indices)
-    train_idx, val_idx = indices[:40000], indices[40000:]
+    # Balanced (Stratified) 80/20 Train/Val Split (40k Train / 10k Val)
+    targets = np.array(full_train.targets)
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=seed)
+    train_idx, val_idx = next(sss.split(np.zeros(len(targets)), targets))
 
     train_loader = DataLoader(Subset(full_train, train_idx), batch_size=128, shuffle=True)
     val_loader = DataLoader(Subset(full_train, val_idx), batch_size=128, shuffle=False)
@@ -359,24 +512,72 @@ def run_cifar_seed_benchmark(seed_idx, seed):
 
     res = {'our_zs_acc': [], 'our_zs_agr': [], 'our_ft_acc': [], 'our_ft_agr': [],
            'da_zs_acc': [], 'da_zs_agr': [], 'da_ft_acc': [], 'da_ft_agr': [],
-           'pct_kept': [], 'our_zs_t': [], 'our_ft_t': [], 'da_zs_t': [], 'da_ft_t': []}
+           'wf_zs_acc': [], 'wf_zs_agr': [], 'wf_ft_acc': [], 'wf_ft_agr': [],
+           'pct_kept': [], 'our_zs_t': [], 'our_ft_t': [], 'da_zs_t': [], 'da_ft_t': [], 'wf_zs_t': [], 'wf_ft_t': [],
+           'teacher_acc': teacher_acc}
 
     for b in target_budgets:
         t_b_start = time.time()
         o_za, o_zg, o_fa, o_fg, total_k, o_tz, o_tf = build_conv_core(b, use_causal=True)
         d_za, d_zg, d_fa, d_fg, _, d_tz, d_tf = build_conv_core(total_k, use_causal=False)
         
+        # Execute 6-step workflow method for current budget
+        prune_pct = max(0.0, min(99.0, (1.0 - b / TOTAL_CHANNELS) * 100.0))
+        wf_out = run_ablation_clustering_restructure_workflow(
+            teacher_model, val_loader, top_n_pct=15.0, n_clusters=4, prune_pct_per_layer=prune_pct, device=device
+        )
+        wf_net = wf_out["restructured_model"]
+
+        # Zero-Shot Eval for Workflow Method
+        wf_net.eval()
+        t0_wf_zs = time.time()
+        with torch.no_grad():
+            wf_zs_logits = wf_net(X_test)
+            wf_zs_preds = wf_zs_logits.argmax(dim=1)
+            wf_zs_acc = (wf_zs_preds == y_test).float().mean().item() * 100.0
+            wf_zs_agr = (wf_zs_preds == orig_test_preds).float().mean().item() * 100.0
+        wf_tz = (time.time() - t0_wf_zs) * 1000.0
+
+        # Fine-Tuning via KD + EMA for Workflow Method
+        t0_wf_ft = time.time()
+        wf_opt = optim.Adam(wf_net.parameters(), lr=1e-3)
+        wf_ema = EMAModel(wf_net, decay=0.98)
+        wf_net.train()
+        for epoch in range(5):
+            for bx, by in train_loader:
+                bx, by = bx.to(device), by.to(device)
+                with torch.no_grad():
+                    t_logits = teacher_model(bx)
+                wf_opt.zero_grad()
+                s_logits = wf_net(bx)
+                loss = kd_loss_fn(s_logits, t_logits, by)
+                loss.backward()
+                wf_opt.step()
+                wf_ema.update()
+
+        wf_ema.apply_shadow()
+        wf_net.eval()
+        with torch.no_grad():
+            wf_ft_preds = wf_net(X_test).argmax(dim=1)
+            wf_ft_acc = (wf_ft_preds == y_test).float().mean().item() * 100.0
+            wf_ft_agr = (wf_ft_preds == orig_test_preds).float().mean().item() * 100.0
+        wf_ema.restore()
+        wf_tf = (time.time() - t0_wf_ft) * 1000.0
+
         pct = (total_k / TOTAL_CHANNELS) * 100.0
         res['pct_kept'].append(pct)
         res['our_zs_acc'].append(o_za); res['our_zs_agr'].append(o_zg)
         res['our_ft_acc'].append(o_fa); res['our_ft_agr'].append(o_fg)
         res['da_zs_acc'].append(d_za); res['da_zs_agr'].append(d_zg)
         res['da_ft_acc'].append(d_fa); res['da_ft_agr'].append(d_fg)
+        res['wf_zs_acc'].append(wf_zs_acc); res['wf_zs_agr'].append(wf_zs_agr)
+        res['wf_ft_acc'].append(wf_ft_acc); res['wf_ft_agr'].append(wf_ft_agr)
         res['our_zs_t'].append(o_tz); res['our_ft_t'].append(o_tf)
         res['da_zs_t'].append(d_tz); res['da_ft_t'].append(d_tf)
+        res['wf_zs_t'].append(wf_tz); res['wf_ft_t'].append(wf_tf)
         
         b_time = time.time() - t_b_start
-        print(f"{get_elapsed_str()}     -> Budget {pct:4.1f}% ({total_k:3d} ch) | Our FT: {o_fa:.2f}% | DA FT: {d_fa:.2f}% ({b_time:.1f}s)")
+        print(f"{get_elapsed_str()}     -> Budget {pct:4.1f}% ({total_k:3d} ch) | Our FT: {o_fa:.2f}% | WF FT: {wf_ft_acc:.2f}% | DA FT: {d_fa:.2f}% ({b_time:.1f}s)")
 
     return res
 
@@ -404,23 +605,29 @@ da_ft_agr_m, da_ft_agr_s = aggregate_cifar('da_ft_agr')
 da_zs_acc_m, da_zs_acc_s = aggregate_cifar('da_zs_acc')
 da_zs_agr_m, da_zs_agr_s = aggregate_cifar('da_zs_agr')
 
-our_zs_t_m, _ = aggregate_cifar('our_zs_t')
-our_ft_t_m, _ = aggregate_cifar('our_ft_t')
-da_zs_t_m, _ = aggregate_cifar('da_zs_t')
-da_ft_t_m, _ = aggregate_cifar('da_ft_t')
+wf_ft_acc_m, wf_ft_acc_s = aggregate_cifar('wf_ft_acc')
+wf_ft_agr_m, wf_ft_agr_s = aggregate_cifar('wf_ft_agr')
+wf_zs_acc_m, wf_zs_acc_s = aggregate_cifar('wf_zs_acc')
+wf_zs_agr_m, wf_zs_agr_s = aggregate_cifar('wf_zs_agr')
+
+teacher_acc_m = np.mean([r['teacher_acc'] for r in all_cifar_runs])
+teacher_acc_s = np.std([r['teacher_acc'] for r in all_cifar_runs])
 
 # =====================================================================
 # 5. Plotting
 # =====================================================================
 print(f"\n{get_elapsed_str()} Generating Benchmark Figures...")
-fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(22, 6))
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
 def plot_cifar_band(ax, x, mean, std, fmt, color, label):
     ax.plot(x, mean, fmt, color=color, linewidth=2.0, label=label)
     ax.fill_between(x, mean - std, mean + std, color=color, alpha=0.15)
 
+# Agreement Plot
 plot_cifar_band(ax1, pct_axis, our_ft_agr_m, our_ft_agr_s, 'D-', '#008080', 'Our Method (KD FT + EMA)')
 plot_cifar_band(ax1, pct_axis, our_zs_agr_m, our_zs_agr_s, 's-.', '#1f77b4', 'Our Method (Zero-Shot)')
+plot_cifar_band(ax1, pct_axis, wf_ft_agr_m, wf_ft_agr_s, 'o-', '#d95f02', 'Workflow Method (KD FT + EMA)')
+plot_cifar_band(ax1, pct_axis, wf_zs_agr_m, wf_zs_agr_s, 'x-.', '#e7298a', 'Workflow Method (Zero-Shot)')
 plot_cifar_band(ax1, pct_axis, da_ft_agr_m, da_ft_agr_s, '^-', '#6a3d9a', 'DeepAbstract (KD FT)')
 plot_cifar_band(ax1, pct_axis, da_zs_agr_m, da_zs_agr_s, 'v-.', '#9467bd', 'DeepAbstract (Zero-Shot)')
 ax1.set_xlabel('Percentage of Conv Channels Kept (%)')
@@ -429,33 +636,23 @@ ax1.set_title('CIFAR-10 Agreement vs. % Channels Kept')
 ax1.grid(True, linestyle='--', alpha=0.5)
 ax1.legend(loc='lower right', fontsize=8)
 
+# Accuracy Plot with Unperturbed Baseline
 plot_cifar_band(ax2, pct_axis, our_ft_acc_m, our_ft_acc_s, 'D-', '#008080', 'Our Method (KD FT + EMA)')
 plot_cifar_band(ax2, pct_axis, our_zs_acc_m, our_zs_acc_s, 's-.', '#2ca02c', 'Our Method (Zero-Shot)')
+plot_cifar_band(ax2, pct_axis, wf_ft_acc_m, wf_ft_acc_s, 'o-', '#d95f02', 'Workflow Method (KD FT + EMA)')
+plot_cifar_band(ax2, pct_axis, wf_zs_acc_m, wf_zs_acc_s, 'x-.', '#e7298a', 'Workflow Method (Zero-Shot)')
 plot_cifar_band(ax2, pct_axis, da_ft_acc_m, da_ft_acc_s, '^-', '#6a3d9a', 'DeepAbstract (KD FT)')
 plot_cifar_band(ax2, pct_axis, da_zs_acc_m, da_zs_acc_s, 'v-.', '#9467bd', 'DeepAbstract (Zero-Shot)')
+
+# Original model baseline (no perturbations)
+ax2.axhline(y=teacher_acc_m, color='#d62728', linestyle='--', linewidth=2.0, label=f'Original Teacher ({teacher_acc_m:.2f}%)')
+ax2.fill_between([pct_axis[0], pct_axis[-1]], teacher_acc_m - teacher_acc_s, teacher_acc_m + teacher_acc_s, color='#d62728', alpha=0.15)
+
 ax2.set_xlabel('Percentage of Conv Channels Kept (%)')
 ax2.set_ylabel('Test Accuracy (%)')
 ax2.set_title('CIFAR-10 Test Accuracy vs. % Channels Kept')
 ax2.grid(True, linestyle='--', alpha=0.5)
 ax2.legend(loc='lower right', fontsize=8)
-
-# Grouped Bar Chart: Zero-Shot vs Fine-Tuned
-eval_groups = ['Zero-Shot', 'Fine-Tuned']
-bw = 0.35
-x_idx = np.arange(len(eval_groups))
-
-our_times = [np.mean(our_zs_t_m), np.mean(our_ft_t_m)]
-da_times = [np.mean(da_zs_t_m), np.mean(da_ft_t_m)]
-
-ax3.bar(x_idx - bw/2, our_times, bw, label='Our Method', color='#008080', edgecolor='black')
-ax3.bar(x_idx + bw/2, da_times, bw, label='DeepAbstract', color='#6a3d9a', edgecolor='black')
-
-ax3.set_ylabel('Execution Time per Run (ms)')
-ax3.set_title('CIFAR-10 Average Execution Time')
-ax3.set_xticks(x_idx)
-ax3.set_xticklabels(eval_groups)
-ax3.grid(True, axis='y', linestyle='--', alpha=0.5)
-ax3.legend(loc='upper left', fontsize=9)
 
 plt.tight_layout()
 plt.savefig('cifar10_benchmark_multiseed.png', dpi=300)
