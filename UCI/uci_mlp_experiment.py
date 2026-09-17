@@ -5,7 +5,8 @@ import numpy as np
 
 # Configure non-interactive backend for HPC clusters
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from sklearn.datasets import load_digits
@@ -24,7 +25,10 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=360, random_state=42, stratify=y
 )
 
-mean, std = X_train.mean(axis=0, keepdims=True), X_train.std(axis=0, keepdims=True) + 1e-8
+mean, std = (
+    X_train.mean(axis=0, keepdims=True),
+    X_train.std(axis=0, keepdims=True) + 1e-8,
+)
 X_train_std = (X_train - mean) / std
 X_test_std = (X_test - mean) / std
 
@@ -32,6 +36,7 @@ X_train_t = torch.tensor(X_train_std, dtype=torch.float32)
 y_train_t = torch.tensor(y_train, dtype=torch.long)
 X_test_t = torch.tensor(X_test_std, dtype=torch.float32)
 y_test_t = torch.tensor(y_test, dtype=torch.long)
+
 
 # =====================================================================
 # Model Definition (256x128 = 384 hidden neurons)
@@ -51,6 +56,7 @@ class MLP(nn.Module):
         out = self.fc3(h2)
         return out
 
+
 model = MLP()
 optimizer = optim.Adam(model.parameters(), lr=0.005)
 criterion = nn.CrossEntropyLoss()
@@ -65,6 +71,7 @@ for epoch in range(100):
 
 model.eval()
 
+
 # =====================================================================
 # 1. Baseline Model Performance
 # =====================================================================
@@ -73,6 +80,7 @@ def get_accuracy(model_obj, X_t, y_t):
         preds = model_obj(X_t).argmax(dim=1)
         acc = (preds == y_t).float().mean().item()
     return acc
+
 
 baseline_train_acc = get_accuracy(model, X_train_t, y_train_t)
 baseline_test_acc = get_accuracy(model, X_test_t, y_test_t)
@@ -110,11 +118,11 @@ with torch.no_grad():
 # =====================================================================
 fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-im1 = axes[0].imshow(scores_l1.reshape(16, 16), cmap='viridis')
+im1 = axes[0].imshow(scores_l1.reshape(16, 16), cmap="viridis")
 axes[0].set_title("Layer 1 Neuron Causal Scores (16x16)")
 plt.colorbar(im1, ax=axes[0])
 
-im2 = axes[1].imshow(scores_l2.reshape(8, 16), cmap='viridis')
+im2 = axes[1].imshow(scores_l2.reshape(8, 16), cmap="viridis")
 axes[1].set_title("Layer 2 Neuron Causal Scores (8x16)")
 plt.colorbar(im2, ax=axes[1])
 
@@ -122,7 +130,7 @@ plt.suptitle("Neuron Causal Importance Scores", fontsize=14)
 plt.tight_layout()
 
 # Save plot instead of showing
-plt.savefig('neuron_causal_scores.png', dpi=300, bbox_inches='tight')
+plt.savefig("neuron_causal_scores.png", dpi=300, bbox_inches="tight")
 plt.close()
 print("Saved plot: neuron_causal_scores.png")
 
@@ -137,17 +145,17 @@ mask_l2 = (scores_l2 >= cutoff).astype(int)
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-axes[0].imshow(mask_l1.reshape(16, 16), cmap='Blues', vmin=0, vmax=1)
+axes[0].imshow(mask_l1.reshape(16, 16), cmap="Blues", vmin=0, vmax=1)
 axes[0].set_title(f"Layer 1 Retained Neurons ({mask_l1.sum()}/256)")
 
-axes[1].imshow(mask_l2.reshape(8, 16), cmap='Blues', vmin=0, vmax=1)
+axes[1].imshow(mask_l2.reshape(8, 16), cmap="Blues", vmin=0, vmax=1)
 axes[1].set_title(f"Layer 2 Retained Neurons ({mask_l2.sum()}/128)")
 
 plt.suptitle("Retained Neurons Mask (1 = Kept, 0 = Pruned)", fontsize=14)
 plt.tight_layout()
 
 # Save plot instead of showing
-plt.savefig('retained_neurons_mask.png', dpi=300, bbox_inches='tight')
+plt.savefig("retained_neurons_mask.png", dpi=300, bbox_inches="tight")
 plt.close()
 print("Saved plot: retained_neurons_mask.png\n")
 

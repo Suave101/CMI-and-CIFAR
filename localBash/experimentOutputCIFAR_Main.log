@@ -1,0 +1,27 @@
+====================================================
+Slurm Job ID:      77236
+Running on host:   gpu05
+Assigned Node(s):  gpu05
+Start Time:        Wed Sep 16 06:40:38 PM EDT 2026
+====================================================
+Activating Conda Environment: ml_project
+Starting Experiment...
+=== STARTING CIFAR-10 BENCHMARK (1 SEEDS) ===
+
+[00:00] === Starting Seed [1/1] (Seed: 42) ===
+[00:03]   [Step 1/3] Loading Latest Teacher Checkpoint (./checkpoints/teacher_seed_42_latest.pth)...
+[00:03]     -> Successfully loaded state dict from Epoch 517
+[00:07]   [Teacher Accuracy]: 83.53%
+[00:07]   [Step 2/3] Profiling Causal Channels & Computing Fingerprints...
+[00:13]   [Step 3/3] Running Abstraction Budgets...
+[03:06]     -> Budget 10.0% ( 45 ch) | Our FT: 39.86% | WF FT: 47.51% | DA FT: 38.52% (173.7s)
+[05:57]     -> Budget 20.1% ( 90 ch) | Our FT: 52.48% | WF FT: 62.66% | DA FT: 48.57% (170.7s)
+[08:48]     -> Budget 30.1% (135 ch) | Our FT: 54.18% | WF FT: 72.16% | DA FT: 52.22% (170.7s)
+[11:38]     -> Budget 40.2% (180 ch) | Our FT: 69.29% | WF FT: 77.45% | DA FT: 61.39% (170.6s)
+[14:29]     -> Budget 50.2% (225 ch) | Our FT: 75.68% | WF FT: 80.35% | DA FT: 70.77% (170.5s)
+[17:19]     -> Budget 60.3% (270 ch) | Our FT: 80.22% | WF FT: 82.03% | DA FT: 77.82% (170.8s)
+[20:10]     -> Budget 70.3% (315 ch) | Our FT: 82.51% | WF FT: 83.14% | DA FT: 81.46% (170.8s)
+[23:01]     -> Budget 80.4% (360 ch) | Our FT: 83.61% | WF FT: 83.70% | DA FT: 83.83% (170.9s)
+
+[23:01] Generating Benchmark Figures...
+[23:02] Benchmark complete. Output plot saved to 'cifar10_benchmark_multiseed.png'

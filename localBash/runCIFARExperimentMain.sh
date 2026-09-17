@@ -6,7 +6,7 @@
 #SBATCH --output=experimentOutputCIFAR_Main.log
 #SBATCH --partition=gpu2
 #SBATCH --cpus-per-task=12
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 #SBATCH --mem=16GB
 #SBATCH --mail-user=adoyle2025@my.fit.edu
 #SBATCH --mail-type=BEGIN,END,FAIL

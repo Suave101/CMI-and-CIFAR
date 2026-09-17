@@ -3,14 +3,16 @@ import torch.nn as nn
 import numpy as np
 
 import matplotlib
-matplotlib.use('Agg')  # Headless HPC backend
+
+matplotlib.use("Agg")  # Headless HPC backend
 import matplotlib.pyplot as plt
 
 # =====================================================================
 # 1. Load Data and Pre-Trained Baseline Model
 # =====================================================================
-data = torch.load('dataset.pt')
-X_test_t, y_test_t = data['X_test'], data['y_test']
+data = torch.load("dataset.pt")
+X_test_t, y_test_t = data["X_test"], data["y_test"]
+
 
 class MLP(nn.Module):
     def __init__(self):
@@ -27,12 +29,14 @@ class MLP(nn.Module):
         out = self.fc3(h2)
         return out
 
+
 model = MLP()
-model.load_state_dict(torch.load('mlp_model.pth'))
+model.load_state_dict(torch.load("mlp_model.pth"))
 model.eval()
 
 with torch.no_grad():
     orig_test_preds = model(X_test_t).argmax(dim=1)
+
 
 # =====================================================================
 # 2. Evaluation and Score Computation Helpers
@@ -41,7 +45,7 @@ def evaluate_masked_model(mask_l1, mask_l2):
     n1, n2 = int(mask_l1.sum()), int(mask_l2.sum())
     if n1 == 0 or n2 == 0:
         return 10.0, 10.0
-    
+
     with torch.no_grad():
         W1 = model.fc1.weight[mask_l1, :]
         b1 = model.fc1.bias[mask_l1]
@@ -59,11 +63,12 @@ def evaluate_masked_model(mask_l1, mask_l2):
         agree = (p_preds == orig_test_preds).float().mean().item() * 100
     return acc, agree
 
+
 def compute_causal_scores(mask_l1, mask_l2):
     """Computes causal importance scores ONLY for currently active neurons."""
     scores_l1 = np.full(256, -1.0)  # Inactive neurons receive -1.0
     scores_l2 = np.full(128, -1.0)
-    
+
     active_l1_indices = np.where(mask_l1)[0]
     active_l2_indices = np.where(mask_l2)[0]
 
@@ -95,6 +100,7 @@ def compute_causal_scores(mask_l1, mask_l2):
 
     return scores_l1, scores_l2
 
+
 # =====================================================================
 # 3. Comparative Pruning Benchmark
 # =====================================================================
@@ -106,7 +112,9 @@ oneshot_accs = []
 random_acc_means, random_acc_stds = [], []
 
 print("=== PRUNING BENCHMARK: ITERATIVE vs ONE-SHOT vs RANDOM ===")
-print(f"{'Retention %':<12} | {'Iterative Acc %':<18} | {'One-Shot Acc %':<18} | {'Random Acc % (Mean±Std)':<24}")
+print(
+    f"{'Retention %':<12} | {'Iterative Acc %':<18} | {'One-Shot Acc %':<18} | {'Random Acc % (Mean±Std)':<24}"
+)
 print("-" * 78)
 
 # Initial state for iterative pruning
@@ -155,25 +163,51 @@ for pct in retention_percentages:
     random_acc_means.append(r_mean)
     random_acc_stds.append(r_std)
 
-    print(f"{pct:<12}% | {it_acc:<18.2f}% | {os_acc:<18.2f}% | {r_mean:5.2f}% ± {r_std:<13.2f}")
+    print(
+        f"{pct:<12}% | {it_acc:<18.2f}% | {os_acc:<18.2f}% | {r_mean:5.2f}% ± {r_std:<13.2f}"
+    )
 
 # =====================================================================
 # 4. Save Comparative Visualization Plot
 # =====================================================================
 fig, ax = plt.subplots(figsize=(10, 6))
 
-ax.plot(retention_percentages, iterative_accs, 'o-', color='tab:green', linewidth=2.5, label='Iterative Causal Pruning (Recalculated)')
-ax.plot(retention_percentages, oneshot_accs, 's--', color='tab:orange', linewidth=2, label='One-Shot Causal Pruning')
-ax.errorbar(retention_percentages, random_acc_means, yerr=random_acc_stds, fmt='x-.', color='tab:blue', 
-            linewidth=1.8, capsize=4, label=f'Layer-Wise Random (Mean ± Std, n={num_random_trials})')
+ax.plot(
+    retention_percentages,
+    iterative_accs,
+    "o-",
+    color="tab:green",
+    linewidth=2.5,
+    label="Iterative Causal Pruning (Recalculated)",
+)
+ax.plot(
+    retention_percentages,
+    oneshot_accs,
+    "s--",
+    color="tab:orange",
+    linewidth=2,
+    label="One-Shot Causal Pruning",
+)
+ax.errorbar(
+    retention_percentages,
+    random_acc_means,
+    yerr=random_acc_stds,
+    fmt="x-.",
+    color="tab:blue",
+    linewidth=1.8,
+    capsize=4,
+    label=f"Layer-Wise Random (Mean ± Std, n={num_random_trials})",
+)
 
-ax.set_xlabel('Neuron Retention Percentage (%)', fontsize=12)
-ax.set_ylabel('Test Accuracy (%)', fontsize=12)
-ax.set_title('Effect of Recalculating Importance: Iterative vs One-Shot Pruning', fontsize=14)
-ax.grid(True, linestyle='--', alpha=0.5)
+ax.set_xlabel("Neuron Retention Percentage (%)", fontsize=12)
+ax.set_ylabel("Test Accuracy (%)", fontsize=12)
+ax.set_title(
+    "Effect of Recalculating Importance: Iterative vs One-Shot Pruning", fontsize=14
+)
+ax.grid(True, linestyle="--", alpha=0.5)
 ax.legend(fontsize=11)
 plt.tight_layout()
 
-plt.savefig('iterative_vs_oneshot_pruning.png', dpi=300)
+plt.savefig("iterative_vs_oneshot_pruning.png", dpi=300)
 plt.close()
 print("\nPlot saved: 'iterative_vs_oneshot_pruning.png'")

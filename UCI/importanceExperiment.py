@@ -3,14 +3,16 @@ import torch.nn as nn
 import numpy as np
 
 import matplotlib
-matplotlib.use('Agg')  # Headless HPC backend
+
+matplotlib.use("Agg")  # Headless HPC backend
 import matplotlib.pyplot as plt
 
 # =====================================================================
 # 1. Load Data and Pre-Trained Baseline Model
 # =====================================================================
-data = torch.load('dataset.pt')
-X_test_t, y_test_t = data['X_test'], data['y_test']
+data = torch.load("dataset.pt")
+X_test_t, y_test_t = data["X_test"], data["y_test"]
+
 
 class MLP(nn.Module):
     def __init__(self):
@@ -27,8 +29,9 @@ class MLP(nn.Module):
         out = self.fc3(h2)
         return out
 
+
 model = MLP()
-model.load_state_dict(torch.load('mlp_model.pth'))
+model.load_state_dict(torch.load("mlp_model.pth"))
 model.eval()
 
 with torch.no_grad():
@@ -45,22 +48,27 @@ with torch.no_grad():
         h1 = model.relu1(model.fc1(X_test_t))
         h1[:, i] = 0.0
         h2 = model.relu2(model.fc2(h1))
-        scores_l1[i] = (orig_test_preds != model.fc3(h2).argmax(dim=1)).float().mean().item()
+        scores_l1[i] = (
+            (orig_test_preds != model.fc3(h2).argmax(dim=1)).float().mean().item()
+        )
 
     for j in range(128):
         h1 = model.relu1(model.fc1(X_test_t))
         h2 = model.relu2(model.fc2(h1))
         h2[:, j] = 0.0
-        scores_l2[j] = (orig_test_preds != model.fc3(h2).argmax(dim=1)).float().mean().item()
+        scores_l2[j] = (
+            (orig_test_preds != model.fc3(h2).argmax(dim=1)).float().mean().item()
+        )
 
 all_scores = np.concatenate([scores_l1, scores_l2])
+
 
 # Helper function to evaluate model given layer masks
 def evaluate_masked_model(mask_l1, mask_l2):
     n_h1, n_h2 = int(mask_l1.sum()), int(mask_l2.sum())
     if n_h1 == 0 or n_h2 == 0:
         return 10.0, 10.0
-    
+
     with torch.no_grad():
         W1 = model.fc1.weight[mask_l1, :]
         b1 = model.fc1.bias[mask_l1]
@@ -78,6 +86,7 @@ def evaluate_masked_model(mask_l1, mask_l2):
         agree = (p_preds == orig_test_preds).float().mean().item() * 100
     return acc, agree
 
+
 # =====================================================================
 # 3. Experiment: Causal vs Random vs Bottom-K Selection
 # =====================================================================
@@ -92,7 +101,9 @@ random_agree_means, random_agree_stds = [], []
 ranked_indices = np.argsort(all_scores)  # Ascending order (lowest score first)
 
 print("=== CANCELLATION STUDY: TOP-K CAUSAL vs RANDOM vs BOTTOM-K ===")
-print(f"{'Retention %':<12} | {'Causal Acc %':<14} | {'Random Acc % (Mean±Std)':<24} | {'Bottom-K Acc %':<14}")
+print(
+    f"{'Retention %':<12} | {'Causal Acc %':<14} | {'Random Acc % (Mean±Std)':<24} | {'Bottom-K Acc %':<14}"
+)
 print("-" * 70)
 
 for pct in retention_percentages:
@@ -131,7 +142,9 @@ for pct in retention_percentages:
     random_agree_means.append(np.mean(r_agrees_trial))
     random_agree_stds.append(np.std(r_agrees_trial))
 
-    print(f"{pct:<12}% | {c_acc:<14.2f}% | {r_acc_mean:5.2f}% ± {r_acc_std:<13.2f} | {b_acc:<14.2f}%")
+    print(
+        f"{pct:<12}% | {c_acc:<14.2f}% | {r_acc_mean:5.2f}% ± {r_acc_std:<13.2f} | {b_acc:<14.2f}%"
+    )
 
 # =====================================================================
 # 4. Save Plot
@@ -139,18 +152,42 @@ for pct in retention_percentages:
 fig, ax = plt.subplots(figsize=(10, 6))
 
 # Plot Curves
-ax.plot(retention_percentages, causal_accs, 'o-', color='tab:green', linewidth=2.5, label='Top-K Causal (Most Important)')
-ax.errorbar(retention_percentages, random_acc_means, yerr=random_acc_stds, fmt='s--', color='tab:blue', 
-            linewidth=2, capsize=4, label=f'Random Selection (Mean ± Std, n={num_random_trials})')
-ax.plot(retention_percentages, bottom_accs, 'x-.', color='tab:red', linewidth=2, label='Bottom-K Causal (Least Important)')
+ax.plot(
+    retention_percentages,
+    causal_accs,
+    "o-",
+    color="tab:green",
+    linewidth=2.5,
+    label="Top-K Causal (Most Important)",
+)
+ax.errorbar(
+    retention_percentages,
+    random_acc_means,
+    yerr=random_acc_stds,
+    fmt="s--",
+    color="tab:blue",
+    linewidth=2,
+    capsize=4,
+    label=f"Random Selection (Mean ± Std, n={num_random_trials})",
+)
+ax.plot(
+    retention_percentages,
+    bottom_accs,
+    "x-.",
+    color="tab:red",
+    linewidth=2,
+    label="Bottom-K Causal (Least Important)",
+)
 
-ax.set_xlabel('Neuron Retention Percentage (%)', fontsize=12)
-ax.set_ylabel('Test Accuracy (%)', fontsize=12)
-ax.set_title('Ablation Benchmark: Causal vs Random vs Bottom-K Neuron Selection', fontsize=14)
-ax.grid(True, linestyle='--', alpha=0.5)
+ax.set_xlabel("Neuron Retention Percentage (%)", fontsize=12)
+ax.set_ylabel("Test Accuracy (%)", fontsize=12)
+ax.set_title(
+    "Ablation Benchmark: Causal vs Random vs Bottom-K Neuron Selection", fontsize=14
+)
+ax.grid(True, linestyle="--", alpha=0.5)
 ax.legend(fontsize=11)
 plt.tight_layout()
 
-plt.savefig('causal_vs_random_pruning.png', dpi=300)
+plt.savefig("causal_vs_random_pruning.png", dpi=300)
 plt.close()
 print("\nPlot saved: 'causal_vs_random_pruning.png'")

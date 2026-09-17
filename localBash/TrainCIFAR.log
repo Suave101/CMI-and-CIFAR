@@ -6,3 +6,4 @@ Start Time:        Wed Sep 16 04:40:52 PM EDT 2026
 ====================================================
 Activating Conda Environment: ml_project
 Starting Experiment...
+slurmstepd-gpu05: error: *** JOB 77129 ON gpu05 CANCELLED AT 2026-09-16T17:31:15 ***
