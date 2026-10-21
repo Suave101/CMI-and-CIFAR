@@ -1,0 +1,32 @@
+====================================================
+Slurm Job ID:      78529
+Running on host:   gpu05
+Assigned Node(s):  gpu05
+Start Time:        Tue Sep 22 03:04:19 PM EDT 2026
+====================================================
+Activating Conda Environment: ml_project
+Starting Experiment...
+=== STARTING CIFAR-10 BENCHMARK (1 SEEDS) ===
+
+[00:00] === Starting Seed [1/1] (Seed: 42) ===
+[00:01]   [Cache Hit] Loading Teacher Checkpoint (./checkpoints/teacher_seed_42_latest.pth)...
+[00:08]   [Teacher Accuracy]: 83.53%
+[02:07]     -> Budget 10.0% ( 45 ch) | GR FT: 47.34% | DA FT: 41.31% (119.8s)
+[04:04]     -> Budget 20.1% ( 90 ch) | GR FT: 61.67% | DA FT: 47.79% (116.7s)
+[05:59]     -> Budget 30.1% (135 ch) | GR FT: 71.99% | DA FT: 52.49% (115.3s)
+[07:55]     -> Budget 40.2% (180 ch) | GR FT: 77.71% | DA FT: 55.96% (116.0s)
+[09:50]     -> Budget 50.2% (225 ch) | GR FT: 80.71% | DA FT: 70.29% (114.8s)
+[11:45]     -> Budget 60.3% (270 ch) | GR FT: 82.59% | DA FT: 77.11% (115.0s)
+[13:40]     -> Budget 70.3% (315 ch) | GR FT: 83.41% | DA FT: 81.48% (115.1s)
+[15:36]     -> Budget 80.4% (360 ch) | GR FT: 83.55% | DA FT: 83.62% (115.9s)
+[15:36]   [S&E Pipeline] Preparing S&E-Enhanced ConvNet...
+[15:36]   [Cache Miss] Training S&E Teacher Baseline (15 Epochs)...
+[18:18]   [Cache Saved] Saved S&E Teacher Checkpoint to (./checkpoints/se_teacher_seed_42_latest.pth).
+[18:18]   [S&E Teacher Accuracy]: 68.98%
+[26:18] Saved Attention Figure [Layer 1/4]: './cifar10_attention_layer1_core.png'
+[26:19] Saved Attention Figure [Layer 2/4]: './cifar10_attention_layer2_cluster1.png'
+[26:21] Saved Attention Figure [Layer 3/4]: './cifar10_attention_layer3_cluster2.png'
+[26:22] Saved Attention Figure [Layer 4/4]: './cifar10_attention_layer4_cluster3.png'
+[26:25] Saved Attention Figure [Summary Matrix]: './cifar10_attention_summary_matrix.png' and './cifar10_global_restructuring_se_attention.png'
+
+[26:25] Benchmark complete! Generated attention figures & checkpoints in project directory.

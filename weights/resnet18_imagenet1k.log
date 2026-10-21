@@ -1,0 +1,2 @@
+2026-09-18 19:25:33,274 | INFO | Using device: cuda
+2026-09-18 19:25:33,275 | INFO | Training configuration: epochs=90, batch_size=256, lr=0.1

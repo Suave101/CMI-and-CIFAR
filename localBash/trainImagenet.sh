@@ -1,12 +1,12 @@
 #!/bin/bash
 # --- Slurm Job Configuration ---
-#SBATCH --job-name=trainImageNet
+#SBATCH --job-name=TrainImgenet
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --output=experimentOuttrainImageNet.log
+#SBATCH --output=TrainImgenet.log
 #SBATCH --partition=gpu2
 #SBATCH --cpus-per-task=12
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:1
 #SBATCH --mem=16GB
 #SBATCH --mail-user=adoyle2025@my.fit.edu
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -34,3 +34,4 @@ cd /home1/adoyle2025/suave101/CMI-and-CIFAR
 echo "Starting Experiment..."
 
 python3 train_imagenet.py
+

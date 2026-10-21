@@ -1,0 +1,30 @@
+====================================================
+Slurm Job ID:      77501
+Running on host:   gpu05
+Assigned Node(s):  gpu05
+Start Time:        Thu Sep 17 02:24:58 PM EDT 2026
+====================================================
+Activating Conda Environment: ml_project
+Starting Experiment...
+[00:01:23] Epoch 010/200 | Train Loss: 1.4555 | Train Acc: 58.69% | Val Acc: 52.74% [Saved Best: 52.74%]
+[00:02:40] Epoch 020/200 | Train Loss: 1.1744 | Train Acc: 65.92% | Val Acc: 59.16%
+[00:03:57] Epoch 030/200 | Train Loss: 1.0673 | Train Acc: 68.78% | Val Acc: 59.97% [Saved Best: 59.97%]
+[00:05:16] Epoch 040/200 | Train Loss: 0.9851 | Train Acc: 71.06% | Val Acc: 59.49%
+[00:06:32] Epoch 050/200 | Train Loss: 0.9310 | Train Acc: 72.45% | Val Acc: 59.97%
+[00:07:50] Epoch 060/200 | Train Loss: 0.8720 | Train Acc: 73.88% | Val Acc: 60.58%
+[00:09:07] Epoch 070/200 | Train Loss: 0.7851 | Train Acc: 76.47% | Val Acc: 60.45%
+[00:10:24] Epoch 080/200 | Train Loss: 0.7168 | Train Acc: 78.45% | Val Acc: 62.93%
+[00:11:41] Epoch 090/200 | Train Loss: 0.6370 | Train Acc: 80.57% | Val Acc: 64.79%
+[00:12:59] Epoch 100/200 | Train Loss: 0.5494 | Train Acc: 83.00% | Val Acc: 63.93%
+[00:14:16] Epoch 110/200 | Train Loss: 0.4332 | Train Acc: 86.60% | Val Acc: 64.89%
+[00:15:34] Epoch 120/200 | Train Loss: 0.3474 | Train Acc: 89.08% | Val Acc: 66.88%
+[00:16:51] Epoch 130/200 | Train Loss: 0.2418 | Train Acc: 92.61% | Val Acc: 69.85% [Saved Best: 69.85%]
+[00:18:09] Epoch 140/200 | Train Loss: 0.1547 | Train Acc: 95.62% | Val Acc: 69.72%
+[00:19:26] Epoch 150/200 | Train Loss: 0.0648 | Train Acc: 98.55% | Val Acc: 73.72%
+[00:20:44] Epoch 160/200 | Train Loss: 0.0149 | Train Acc: 99.89% | Val Acc: 77.27% [Saved Best: 77.27%]
+[00:22:02] Epoch 170/200 | Train Loss: 0.0108 | Train Acc: 99.94% | Val Acc: 78.31% [Saved Best: 78.31%]
+[00:23:19] Epoch 180/200 | Train Loss: 0.0095 | Train Acc: 99.97% | Val Acc: 78.59%
+[00:24:36] Epoch 190/200 | Train Loss: 0.0092 | Train Acc: 99.97% | Val Acc: 78.64%
+[00:25:52] Epoch 200/200 | Train Loss: 0.0089 | Train Acc: 99.98% | Val Acc: 78.68%
+
+Training Complete. Best CIFAR-100 Accuracy: 78.87%. Saved to weights/resnet18_cifar100_best.pth
